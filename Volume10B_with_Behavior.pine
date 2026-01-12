@@ -1,0 +1,482 @@
+//@version=5
+indicator("Volume 10 Candle Block + Behavior", shorttitle="Vol10B+Behavior", overlay=false)
+
+// ============================================
+// INPUT SETTINGS
+// ============================================
+
+// Style Settings
+blockColor = input.color(color.new(#2962FF, 60), "Warna Blok", group="Style")
+borderColor = input.color(color.new(#2962FF, 0), "Warna Border", group="Style")
+showLabel = input.bool(true, "Tampilkan Label Volume", group="Display")
+labelSize = input.string("small", "Ukuran Label", options=["tiny", "small", "normal"], group="Display")
+
+// Analisis Volume Blok Settings
+showVolumeStats = input.bool(true, "Tampilkan Statistik Volume", group="Analisis Volume Blok")
+includeCurrentBlock = input.bool(true, "Hitung Blok yang Sedang Berjalan", group="Analisis Volume Blok")
+showHighlight = input.bool(true, "Highlight Volume Tertinggi/Terendah", group="Analisis Volume Blok")
+highVolColor = input.color(color.new(color.green, 30), "Warna Blok Volume Tertinggi", group="Analisis Volume Blok")
+lowVolColor = input.color(color.new(color.red, 30), "Warna Blok Volume Terendah", group="Analisis Volume Blok")
+showCurrentBlockInfo = input.bool(true, "Tampilkan Info Blok Berjalan", group="Analisis Volume Blok")
+
+// Behavior Analysis Settings
+showBehaviorAnalysis = input.bool(true, "Tampilkan Analisis Behavior", group="Behavior Analysis")
+behaviorThreshold = input.float(0.5, "Threshold Agresivitas (0-1)", minval=0.1, maxval=1.0, step=0.05, group="Behavior Analysis", tooltip="Semakin tinggi = semakin ketat dalam menentukan 'Tenang'. Default 0.5")
+aggressiveColor = input.color(color.new(color.orange, 30), "Warna Blok Agresif", group="Behavior Analysis")
+calmColor = input.color(color.new(color.teal, 30), "Warna Blok Tenang", group="Behavior Analysis")
+showBehaviorLabel = input.bool(true, "Tampilkan Label Behavior", group="Behavior Analysis")
+
+// ============================================
+// AMBIL DATA VOLUME 30 MENIT
+// ============================================
+
+// Request volume dari timeframe 30 menit
+vol30m = request.security(syminfo.tickerid, "30", volume, lookahead=barmerge.lookahead_off)
+vol30m_prev1 = request.security(syminfo.tickerid, "30", volume[1], lookahead=barmerge.lookahead_off)
+vol30m_prev2 = request.security(syminfo.tickerid, "30", volume[2], lookahead=barmerge.lookahead_off)
+vol30m_prev3 = request.security(syminfo.tickerid, "30", volume[3], lookahead=barmerge.lookahead_off)
+vol30m_prev4 = request.security(syminfo.tickerid, "30", volume[4], lookahead=barmerge.lookahead_off)
+vol30m_prev5 = request.security(syminfo.tickerid, "30", volume[5], lookahead=barmerge.lookahead_off)
+vol30m_prev6 = request.security(syminfo.tickerid, "30", volume[6], lookahead=barmerge.lookahead_off)
+vol30m_prev7 = request.security(syminfo.tickerid, "30", volume[7], lookahead=barmerge.lookahead_off)
+vol30m_prev8 = request.security(syminfo.tickerid, "30", volume[8], lookahead=barmerge.lookahead_off)
+vol30m_prev9 = request.security(syminfo.tickerid, "30", volume[9], lookahead=barmerge.lookahead_off)
+
+// ============================================
+// HITUNG BEHAVIOR BERDASARKAN VOLUME 30M
+// ============================================
+
+// Fungsi untuk menghitung direction changes (perubahan arah)
+// Semakin banyak perubahan arah = semakin acak/agresif
+calcDirectionChanges() =>
+    changes = 0
+
+    // Bandingkan volume berturut-turut untuk melihat perubahan arah
+    dir1 = vol30m > vol30m_prev1 ? 1 : vol30m < vol30m_prev1 ? -1 : 0
+    dir2 = vol30m_prev1 > vol30m_prev2 ? 1 : vol30m_prev1 < vol30m_prev2 ? -1 : 0
+    dir3 = vol30m_prev2 > vol30m_prev3 ? 1 : vol30m_prev2 < vol30m_prev3 ? -1 : 0
+    dir4 = vol30m_prev3 > vol30m_prev4 ? 1 : vol30m_prev3 < vol30m_prev4 ? -1 : 0
+    dir5 = vol30m_prev4 > vol30m_prev5 ? 1 : vol30m_prev4 < vol30m_prev5 ? -1 : 0
+    dir6 = vol30m_prev5 > vol30m_prev6 ? 1 : vol30m_prev5 < vol30m_prev6 ? -1 : 0
+    dir7 = vol30m_prev6 > vol30m_prev7 ? 1 : vol30m_prev6 < vol30m_prev7 ? -1 : 0
+    dir8 = vol30m_prev7 > vol30m_prev8 ? 1 : vol30m_prev7 < vol30m_prev8 ? -1 : 0
+    dir9 = vol30m_prev8 > vol30m_prev9 ? 1 : vol30m_prev8 < vol30m_prev9 ? -1 : 0
+
+    // Hitung berapa kali arah berubah
+    if dir1 != dir2 and dir1 != 0 and dir2 != 0
+        changes += 1
+    if dir2 != dir3 and dir2 != 0 and dir3 != 0
+        changes += 1
+    if dir3 != dir4 and dir3 != 0 and dir4 != 0
+        changes += 1
+    if dir4 != dir5 and dir4 != 0 and dir5 != 0
+        changes += 1
+    if dir5 != dir6 and dir5 != 0 and dir6 != 0
+        changes += 1
+    if dir6 != dir7 and dir6 != 0 and dir7 != 0
+        changes += 1
+    if dir7 != dir8 and dir7 != 0 and dir8 != 0
+        changes += 1
+    if dir8 != dir9 and dir8 != 0 and dir9 != 0
+        changes += 1
+
+    changes
+
+// Fungsi untuk menghitung volatilitas volume (coefficient of variation)
+calcVolumeVolatility() =>
+    // Hitung mean
+    sumVol = vol30m + vol30m_prev1 + vol30m_prev2 + vol30m_prev3 + vol30m_prev4 +
+             vol30m_prev5 + vol30m_prev6 + vol30m_prev7 + vol30m_prev8 + vol30m_prev9
+    meanVol = sumVol / 10
+
+    // Hitung variance
+    diff1 = math.pow(vol30m - meanVol, 2)
+    diff2 = math.pow(vol30m_prev1 - meanVol, 2)
+    diff3 = math.pow(vol30m_prev2 - meanVol, 2)
+    diff4 = math.pow(vol30m_prev3 - meanVol, 2)
+    diff5 = math.pow(vol30m_prev4 - meanVol, 2)
+    diff6 = math.pow(vol30m_prev5 - meanVol, 2)
+    diff7 = math.pow(vol30m_prev6 - meanVol, 2)
+    diff8 = math.pow(vol30m_prev7 - meanVol, 2)
+    diff9 = math.pow(vol30m_prev8 - meanVol, 2)
+    diff10 = math.pow(vol30m_prev9 - meanVol, 2)
+
+    variance = (diff1 + diff2 + diff3 + diff4 + diff5 + diff6 + diff7 + diff8 + diff9 + diff10) / 10
+    stdDev = math.sqrt(variance)
+
+    // Coefficient of Variation (CV) - normalized volatility
+    cv = meanVol > 0 ? stdDev / meanVol : 0
+    cv
+
+// Fungsi untuk menghitung smoothness (kehalusan pergerakan)
+// Mengukur seberapa konsisten pergerakan volume
+calcSmoothness() =>
+    // Hitung rata-rata perubahan absolut
+    change1 = math.abs(vol30m - vol30m_prev1)
+    change2 = math.abs(vol30m_prev1 - vol30m_prev2)
+    change3 = math.abs(vol30m_prev2 - vol30m_prev3)
+    change4 = math.abs(vol30m_prev3 - vol30m_prev4)
+    change5 = math.abs(vol30m_prev4 - vol30m_prev5)
+    change6 = math.abs(vol30m_prev5 - vol30m_prev6)
+    change7 = math.abs(vol30m_prev6 - vol30m_prev7)
+    change8 = math.abs(vol30m_prev7 - vol30m_prev8)
+    change9 = math.abs(vol30m_prev8 - vol30m_prev9)
+
+    avgChange = (change1 + change2 + change3 + change4 + change5 + change6 + change7 + change8 + change9) / 9
+
+    // Hitung variance dari perubahan (jika perubahan konsisten, variance rendah)
+    diffC1 = math.pow(change1 - avgChange, 2)
+    diffC2 = math.pow(change2 - avgChange, 2)
+    diffC3 = math.pow(change3 - avgChange, 2)
+    diffC4 = math.pow(change4 - avgChange, 2)
+    diffC5 = math.pow(change5 - avgChange, 2)
+    diffC6 = math.pow(change6 - avgChange, 2)
+    diffC7 = math.pow(change7 - avgChange, 2)
+    diffC8 = math.pow(change8 - avgChange, 2)
+    diffC9 = math.pow(change9 - avgChange, 2)
+
+    varianceChange = (diffC1 + diffC2 + diffC3 + diffC4 + diffC5 + diffC6 + diffC7 + diffC8 + diffC9) / 9
+    smoothnessScore = avgChange > 0 ? math.sqrt(varianceChange) / avgChange : 0
+    smoothnessScore
+
+// Hitung metrik behavior
+directionChanges = calcDirectionChanges()
+volumeVolatility = calcVolumeVolatility()
+smoothnessScore = calcSmoothness()
+
+// Normalisasi skor (0-1 range)
+// Direction changes: max 8 perubahan possible, normalized
+directionScore = directionChanges / 8.0
+
+// Volume volatility: cap at 2 (very volatile), normalized
+volatilityScore = math.min(volumeVolatility, 2.0) / 2.0
+
+// Smoothness: cap at 2, normalized
+smoothScore = math.min(smoothnessScore, 2.0) / 2.0
+
+// Gabungkan skor menjadi Aggressiveness Index (0-1)
+// Semakin tinggi = semakin agresif/acak
+aggressivenessIndex = (directionScore * 0.4) + (volatilityScore * 0.35) + (smoothScore * 0.25)
+
+// Tentukan behavior
+isAggressive = aggressivenessIndex >= behaviorThreshold
+behaviorText = isAggressive ? "AGRESIF" : "TENANG"
+behaviorEmoji = isAggressive ? "⚡" : "🌊"
+
+// ============================================
+// LOGIKA VOLUME BLOK ORIGINAL
+// ============================================
+
+// Hitung posisi candle dalam kelompok 10
+barIndex = bar_index
+groupNumber = math.floor(barIndex / 10)
+positionInGroup = barIndex % 10
+
+// Variabel untuk menyimpan total volume per grup
+var float currentGroupVolume = 0.0
+var float displayVolume = 0.0
+
+// Array untuk menyimpan 10 blok volume terakhir
+var array<float> last10BlockVolumes = array.new_float(0)
+var array<int> last10BlockNumbers = array.new_int(0)
+
+// Array untuk menyimpan behavior tiap blok
+var array<float> last10BlockAggression = array.new_float(0)
+var array<string> last10BlockBehavior = array.new_string(0)
+
+// Variabel untuk behavior blok saat ini
+var float currentBlockAggression = 0.0
+var string currentBlockBehavior = ""
+
+// Reset dan hitung volume untuk grup baru
+if positionInGroup == 0
+    // Simpan volume dan behavior grup sebelumnya
+    if groupNumber > 0
+        array.push(last10BlockVolumes, currentGroupVolume)
+        array.push(last10BlockNumbers, groupNumber)
+        array.push(last10BlockAggression, currentBlockAggression)
+        array.push(last10BlockBehavior, currentBlockBehavior)
+
+        // Simpan hanya 10 blok terakhir
+        if array.size(last10BlockVolumes) > 10
+            array.shift(last10BlockVolumes)
+            array.shift(last10BlockNumbers)
+            array.shift(last10BlockAggression)
+            array.shift(last10BlockBehavior)
+
+    displayVolume := currentGroupVolume
+    currentGroupVolume := volume
+    currentBlockAggression := aggressivenessIndex
+    currentBlockBehavior := behaviorText
+else
+    currentGroupVolume += volume
+    displayVolume := currentGroupVolume
+    // Update behavior dengan rata-rata selama blok berjalan
+    currentBlockAggression := (currentBlockAggression * positionInGroup + aggressivenessIndex) / (positionInGroup + 1)
+    currentBlockBehavior := currentBlockAggression >= behaviorThreshold ? "AGRESIF" : "TENANG"
+
+// Tentukan apakah blok ini adalah volume tertinggi atau terendah
+var bool isHighestBlock = false
+var bool isLowestBlock = false
+
+if array.size(last10BlockVolumes) >= 1
+    // Buat array untuk perbandingan - termasuk blok yang sedang berjalan jika diaktifkan
+    volumesToCompare = array.copy(last10BlockVolumes)
+
+    if includeCurrentBlock and positionInGroup > 0
+        // Tambahkan volume blok yang sedang berjalan
+        array.push(volumesToCompare, currentGroupVolume)
+
+    sortedBlocks = array.copy(volumesToCompare)
+    array.sort(sortedBlocks, order.descending)
+
+    highestBlockVol = array.get(sortedBlocks, 0)
+    lowestBlockVol = array.get(sortedBlocks, array.size(sortedBlocks) - 1)
+
+    // Cek apakah grup sebelumnya adalah tertinggi atau terendah
+    if groupNumber > 0 and array.size(last10BlockVolumes) >= 1
+        previousGroupVol = array.get(last10BlockVolumes, array.size(last10BlockVolumes) - 1)
+
+        if previousGroupVol == highestBlockVol
+            isHighestBlock := true
+        else if previousGroupVol == lowestBlockVol
+            isLowestBlock := true
+
+// ============================================
+// TENTUKAN WARNA PLOT
+// ============================================
+
+// Prioritas warna: Behavior > Volume Highlight > Default
+plotColor = blockColor
+
+// Jika behavior analysis aktif, gunakan warna behavior
+if showBehaviorAnalysis
+    if currentBlockAggression >= behaviorThreshold
+        plotColor := aggressiveColor
+    else
+        plotColor := calmColor
+
+// Override dengan highlight volume jika aktif (prioritas lebih tinggi)
+if showHighlight and positionInGroup >= 0
+    if isHighestBlock
+        plotColor := highVolColor
+    else if isLowestBlock
+        plotColor := lowVolColor
+
+// ============================================
+// PLOT
+// ============================================
+
+// Plot histogram dengan warna berdasarkan analisis
+plot(displayVolume, "Volume Blok 10",
+     style=plot.style_columns,
+     color=plotColor,
+     linewidth=3)
+
+// Plot garis aggressiveness index sebagai referensi (opsional)
+plot(showBehaviorAnalysis ? aggressivenessIndex * displayVolume : na, "Aggression Level",
+     style=plot.style_line,
+     color=color.new(color.yellow, 50),
+     linewidth=1)
+
+// ============================================
+// LABEL
+// ============================================
+
+// Tampilkan label di candle terakhir setiap grup
+if showLabel and positionInGroup == 9
+    labelSizeOption = labelSize == "tiny" ? size.tiny : labelSize == "small" ? size.small : size.normal
+
+    labelColor = borderColor
+    labelText = str.tostring(displayVolume, format.volume)
+
+    // Tambahkan marker untuk blok tertinggi/terendah
+    if showHighlight and array.size(last10BlockVolumes) >= 1
+        // Cek apakah blok yang baru selesai ini akan menjadi tertinggi/terendah
+        futureBlocks = array.copy(last10BlockVolumes)
+        array.push(futureBlocks, currentGroupVolume)
+        if array.size(futureBlocks) > 10
+            array.shift(futureBlocks)
+
+        sortedFuture = array.copy(futureBlocks)
+        array.sort(sortedFuture, order.descending)
+
+        futureHighest = array.get(sortedFuture, 0)
+        futureLowest = array.get(sortedFuture, array.size(sortedFuture) - 1)
+
+        if currentGroupVolume == futureHighest
+            labelColor := color.new(color.green, 0)
+            labelText := "🔥 " + labelText
+        else if currentGroupVolume == futureLowest
+            labelColor := color.new(color.red, 0)
+            labelText := "❄️ " + labelText
+
+    // Tambahkan behavior label jika aktif
+    if showBehaviorLabel and showBehaviorAnalysis
+        behaviorIndicator = currentBlockAggression >= behaviorThreshold ? "⚡" : "🌊"
+        labelText := labelText + "\n" + behaviorIndicator
+
+    label.new(bar_index, displayVolume,
+         text=labelText,
+         style=label.style_label_down,
+         color=labelColor,
+         textcolor=color.white,
+         size=labelSizeOption)
+
+// Garis referensi
+hline(0, "Zero", color=color.new(color.gray, 80), linestyle=hline.style_dotted)
+
+// ============================================
+// TABEL INFORMASI
+// ============================================
+
+if showVolumeStats or showBehaviorAnalysis
+    // Tambah baris untuk behavior jika aktif
+    tableRows = showBehaviorAnalysis ? 5 : 3
+
+    var table infoTable = table.new(position.top_right, 2, tableRows,
+         border_width=1,
+         border_color=color.new(color.gray, 50),
+         frame_width=1,
+         frame_color=color.new(color.gray, 50))
+
+    rowIndex = 0
+
+    // Hitung jika ada minimal 1 blok selesai
+    if array.size(last10BlockVolumes) >= 1
+        // Buat array untuk perbandingan
+        volumesToCompare = array.copy(last10BlockVolumes)
+
+        // Tambahkan blok yang sedang berjalan jika diaktifkan
+        if includeCurrentBlock and positionInGroup > 0
+            array.push(volumesToCompare, currentGroupVolume)
+
+        sortedBlocks = array.copy(volumesToCompare)
+        array.sort(sortedBlocks, order.descending)
+
+        highestVol = array.get(sortedBlocks, 0)
+        lowestVol = array.get(sortedBlocks, array.size(sortedBlocks) - 1)
+
+        // Cari nomor blok untuk volume tertinggi dan terendah
+        highestBlkNum = 0
+        lowestBlkNum = 0
+        highestIsCurrentBlock = false
+        lowestIsCurrentBlock = false
+
+        for i = 0 to array.size(last10BlockVolumes) - 1
+            if array.get(last10BlockVolumes, i) == highestVol
+                highestBlkNum := array.get(last10BlockNumbers, i)
+            if array.get(last10BlockVolumes, i) == lowestVol
+                lowestBlkNum := array.get(last10BlockNumbers, i)
+
+        // Cek apakah blok tertinggi/terendah adalah blok yang sedang berjalan
+        if includeCurrentBlock and positionInGroup > 0
+            if currentGroupVolume == highestVol
+                highestIsCurrentBlock := true
+                highestBlkNum := groupNumber + 1
+            if currentGroupVolume == lowestVol
+                lowestIsCurrentBlock := true
+                lowestBlkNum := groupNumber + 1
+
+        // Format label untuk blok tertinggi
+        highestLabel = str.tostring(highestVol, format.volume)
+        if highestIsCurrentBlock
+            highestLabel := highestLabel + " *"
+
+        // Format label untuk blok terendah
+        lowestLabel = str.tostring(lowestVol, format.volume)
+        if lowestIsCurrentBlock
+            lowestLabel := lowestLabel + " *"
+
+        if showVolumeStats
+            // Baris 1: Volume Terbesar
+            table.cell(infoTable, 0, rowIndex, "Volume Terbesar",
+                 text_color=color.white,
+                 bgcolor=color.new(color.green, 70),
+                 text_size=size.small)
+            table.cell(infoTable, 1, rowIndex, highestLabel,
+                 text_color=color.white,
+                 bgcolor=color.new(color.green, 70),
+                 text_size=size.small)
+            rowIndex += 1
+
+            // Baris 2: Volume Terkecil
+            table.cell(infoTable, 0, rowIndex, "Volume Terkecil",
+                 text_color=color.white,
+                 bgcolor=color.new(color.red, 70),
+                 text_size=size.small)
+            table.cell(infoTable, 1, rowIndex, lowestLabel,
+                 text_color=color.white,
+                 bgcolor=color.new(color.red, 70),
+                 text_size=size.small)
+            rowIndex += 1
+
+    // Info Blok yang Sedang Berjalan
+    if showCurrentBlockInfo and positionInGroup > 0
+        currentCandleCount = positionInGroup + 1
+        currentBlockLabel = str.tostring(currentCandleCount) + "/10 candle"
+        currentVolumeLabel = str.tostring(currentGroupVolume, format.volume)
+
+        table.cell(infoTable, 0, rowIndex, "Blok Berjalan",
+             text_color=color.white,
+             bgcolor=color.new(color.blue, 70),
+             text_size=size.small)
+        table.cell(infoTable, 1, rowIndex, currentBlockLabel + "\n" + currentVolumeLabel,
+             text_color=color.white,
+             bgcolor=color.new(color.blue, 70),
+             text_size=size.small)
+        rowIndex += 1
+    else if showVolumeStats
+        table.cell(infoTable, 0, rowIndex, "",
+             text_color=color.white,
+             bgcolor=color.new(color.gray, 90),
+             text_size=size.small)
+        table.cell(infoTable, 1, rowIndex, "",
+             text_color=color.white,
+             bgcolor=color.new(color.gray, 90),
+             text_size=size.small)
+        rowIndex += 1
+
+    // ============================================
+    // BEHAVIOR ANALYSIS SECTION
+    // ============================================
+
+    if showBehaviorAnalysis
+        // Baris Behavior: Status behavior blok saat ini
+        behaviorBgColor = currentBlockAggression >= behaviorThreshold ? color.new(color.orange, 70) : color.new(color.teal, 70)
+        behaviorStatusText = currentBlockAggression >= behaviorThreshold ? "⚡ AGRESIF" : "🌊 TENANG"
+
+        table.cell(infoTable, 0, rowIndex, "Behavior (30m)",
+             text_color=color.white,
+             bgcolor=behaviorBgColor,
+             text_size=size.small)
+        table.cell(infoTable, 1, rowIndex, behaviorStatusText,
+             text_color=color.white,
+             bgcolor=behaviorBgColor,
+             text_size=size.small)
+        rowIndex += 1
+
+        // Baris Aggression Index
+        aggrPercent = str.tostring(math.round(aggressivenessIndex * 100, 1)) + "%"
+        aggrBgColor = aggressivenessIndex >= 0.7 ? color.new(color.red, 70) : aggressivenessIndex >= 0.4 ? color.new(color.orange, 70) : color.new(color.green, 70)
+
+        table.cell(infoTable, 0, rowIndex, "Aggression Index",
+             text_color=color.white,
+             bgcolor=aggrBgColor,
+             text_size=size.small)
+        table.cell(infoTable, 1, rowIndex, aggrPercent,
+             text_color=color.white,
+             bgcolor=aggrBgColor,
+             text_size=size.small)
+
+// ============================================
+// ALERTS
+// ============================================
+
+alertcondition(positionInGroup == 0, "Grup Baru", "Blok 10 candle baru dimulai")
+alertcondition(isHighestBlock and positionInGroup == 0, "Blok Volume Tertinggi", "Blok dengan volume tertinggi dalam 10 blok terakhir")
+alertcondition(isLowestBlock and positionInGroup == 0, "Blok Volume Terendah", "Blok dengan volume terendah dalam 10 blok terakhir")
+
+// Alert untuk behavior
+alertcondition(positionInGroup == 0 and currentBlockAggression >= behaviorThreshold, "Blok Agresif Selesai", "Blok dengan behavior agresif telah selesai")
+alertcondition(positionInGroup == 0 and currentBlockAggression < behaviorThreshold, "Blok Tenang Selesai", "Blok dengan behavior tenang telah selesai")
