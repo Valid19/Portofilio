@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crypto Watchlist - Volume 3 Block Scanner</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-left">
+      <h1 class="logo">Vol3B Scanner</h1>
+      <span class="subtitle">Volume 3 Candle Block Watchlist</span>
+    </div>
+    <div class="header-right">
+      <div class="controls">
+        <label for="interval-select">Interval:</label>
+        <select id="interval-select">
+          <option value="5m">5 min</option>
+          <option value="15m" selected>15 min</option>
+          <option value="1h">1 hour</option>
+          <option value="4h">4 hours</option>
+          <option value="1d">1 day</option>
+        </select>
+        <button id="scan-btn" class="btn btn-primary">Scan Now</button>
+        <button id="auto-scan-btn" class="btn btn-secondary">Auto Scan: OFF</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <!-- Watchlist Panel -->
+    <section class="panel watchlist-panel">
+      <div class="panel-header">
+        <h2>Watchlist</h2>
+        <div class="panel-actions">
+          <div class="filter-tabs">
+            <button class="tab active" data-filter="all">All</button>
+            <button class="tab" data-filter="green">Green Phase</button>
+            <button class="tab" data-filter="red">Red Phase</button>
+          </div>
+          <button id="clear-watchlist" class="btn btn-small btn-danger">Clear All</button>
+        </div>
+      </div>
+      <div class="watchlist-info">
+        <p>Cryptos are auto-added when detected in a <span class="green-text">Green (Highest Volume)</span> or <span class="red-text">Red (Lowest Volume)</span> 3-block phase.</p>
+      </div>
+      <div id="watchlist-container" class="watchlist-container">
+        <div class="empty-state">
+          <p>No assets in watchlist yet.</p>
+          <p class="hint">Click "Scan Now" to analyze crypto assets.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scanner Results -->
+    <section class="panel scanner-panel">
+      <div class="panel-header">
+        <h2>Scanner Results</h2>
+        <div class="scan-status">
+          <span id="scan-status-text">Ready to scan</span>
+          <span id="scan-progress" class="progress-badge hidden">0/20</span>
+        </div>
+      </div>
+      <div id="scanner-container" class="scanner-container">
+        <div class="empty-state">
+          <p>Click "Scan Now" to analyze Volume 3 Block patterns.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Detail Modal -->
+  <div id="detail-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title">Asset Detail</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div id="modal-body" class="modal-body">
+        <!-- Volume block chart will render here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="js/volume3block.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/watchlist.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
