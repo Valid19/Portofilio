@@ -7,12 +7,55 @@
 class CryptoAPI {
   constructor() {
     this.baseUrl = 'https://api.binance.com';
-    this.defaultSymbols = [
-      'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT',
-      'ADAUSDT', 'DOGEUSDT', 'AVAXUSDT', 'DOTUSDT', 'MATICUSDT',
-      'LINKUSDT', 'ATOMUSDT', 'UNIUSDT', 'LTCUSDT', 'ETCUSDT',
-      'NEARUSDT', 'APTUSDT', 'ARBUSDT', 'OPUSDT', 'FILUSDT',
-    ];
+    this.allSymbols = [];
+    this.symbolsLoaded = false;
+  }
+
+  /**
+   * Fetch all available SPOT trading pairs from Binance exchange info.
+   * Filters for TRADING status only.
+   * @param {string} quoteAsset - Filter by quote asset (e.g. 'USDT', 'BTC', 'ETH', or 'ALL')
+   * @returns {Promise<Array>} Array of { symbol, baseAsset, quoteAsset }
+   */
+  async fetchAllSymbols(quoteAsset = 'USDT') {
+    if (this.allSymbols.length === 0) {
+      const url = `${this.baseUrl}/api/v3/exchangeInfo`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}: ${response.statusText}`);
+      }
+      const data = await response.json();
+
+      this.allSymbols = data.symbols
+        .filter(s => s.status === 'TRADING' && s.isSpotTradingAllowed)
+        .map(s => ({
+          symbol: s.symbol,
+          baseAsset: s.baseAsset,
+          quoteAsset: s.quoteAsset,
+        }));
+      this.symbolsLoaded = true;
+    }
+
+    if (quoteAsset === 'ALL') {
+      return [...this.allSymbols];
+    }
+    return this.allSymbols.filter(s => s.quoteAsset === quoteAsset);
+  }
+
+  /**
+   * Search symbols by keyword.
+   * @param {string} query - Search term (e.g. 'BTC', 'SOL', 'DOGE')
+   * @param {string} quoteAsset - Quote asset filter
+   * @returns {Promise<Array>}
+   */
+  async searchSymbols(query, quoteAsset = 'USDT') {
+    const symbols = await this.fetchAllSymbols(quoteAsset);
+    if (!query) return symbols;
+
+    const q = query.toUpperCase();
+    return symbols.filter(s =>
+      s.baseAsset.includes(q) || s.symbol.includes(q)
+    );
   }
 
   /**
@@ -46,49 +89,20 @@ class CryptoAPI {
   }
 
   /**
-   * Fetch 24h ticker data for a symbol (price info).
-   * @param {string} symbol
-   * @returns {Promise<Object>}
-   */
-  async getTicker(symbol) {
-    const url = `${this.baseUrl}/api/v3/ticker/24hr?symbol=${symbol}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`API error ${response.status}: ${response.statusText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Fetch current price for a symbol.
-   * @param {string} symbol
-   * @returns {Promise<Object>}
-   */
-  async getPrice(symbol) {
-    const url = `${this.baseUrl}/api/v3/ticker/price?symbol=${symbol}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`API error ${response.status}: ${response.statusText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Get the list of default symbols to scan.
-   * @returns {string[]}
-   */
-  getDefaultSymbols() {
-    return [...this.defaultSymbols];
-  }
-
-  /**
    * Format symbol for display (e.g. BTCUSDT -> BTC/USDT)
    * @param {string} symbol
+   * @param {string} quoteAsset
    * @returns {string}
    */
-  formatSymbol(symbol) {
-    if (symbol.endsWith('USDT')) {
-      return symbol.replace('USDT', '/USDT');
+  formatSymbol(symbol, quoteAsset) {
+    if (quoteAsset && symbol.endsWith(quoteAsset)) {
+      return symbol.replace(quoteAsset, '/' + quoteAsset);
+    }
+    // Try common quote assets
+    for (const q of ['USDT', 'BUSD', 'BTC', 'ETH', 'BNB']) {
+      if (symbol.endsWith(q)) {
+        return symbol.replace(q, '/' + q);
+      }
     }
     return symbol;
   }
@@ -96,11 +110,17 @@ class CryptoAPI {
   /**
    * Get base asset from symbol (e.g. BTCUSDT -> BTC)
    * @param {string} symbol
+   * @param {string} quoteAsset
    * @returns {string}
    */
-  getBaseAsset(symbol) {
-    if (symbol.endsWith('USDT')) {
-      return symbol.replace('USDT', '');
+  getBaseAsset(symbol, quoteAsset) {
+    if (quoteAsset && symbol.endsWith(quoteAsset)) {
+      return symbol.replace(quoteAsset, '');
+    }
+    for (const q of ['USDT', 'BUSD', 'BTC', 'ETH', 'BNB']) {
+      if (symbol.endsWith(q)) {
+        return symbol.replace(q, '');
+      }
     }
     return symbol;
   }

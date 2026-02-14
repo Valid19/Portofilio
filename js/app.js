@@ -1,8 +1,8 @@
 /**
  * Main Application - Crypto Watchlist Volume 3 Block Scanner
  *
- * Scans multiple crypto assets, runs the Volume 3 Block analysis on each,
- * and auto-adds assets to the watchlist when they are in a green or red phase.
+ * Scans ALL crypto assets from Binance, runs Volume 3 Block analysis,
+ * and auto-adds assets to watchlist when in green or red phase.
  */
 
 (function () {
@@ -18,13 +18,19 @@
 
   let scanResults = [];
   let isScanning = false;
+  let stopRequested = false;
   let autoScanInterval = null;
   let currentFilter = 'all';
+  let scannerFilter = 'all';
+  let scannerSearchQuery = '';
+  let watchlistSearchQuery = '';
 
   // DOM references
   const scanBtn = document.getElementById('scan-btn');
+  const stopBtn = document.getElementById('stop-btn');
   const autoScanBtn = document.getElementById('auto-scan-btn');
   const intervalSelect = document.getElementById('interval-select');
+  const quoteSelect = document.getElementById('quote-select');
   const watchlistContainer = document.getElementById('watchlist-container');
   const scannerContainer = document.getElementById('scanner-container');
   const scanStatusText = document.getElementById('scan-status-text');
@@ -33,12 +39,26 @@
   const detailModal = document.getElementById('detail-modal');
   const modalTitle = document.getElementById('modal-title');
   const modalBody = document.getElementById('modal-body');
+  const progressBarContainer = document.getElementById('progress-bar-container');
+  const progressBar = document.getElementById('progress-bar');
+  const progressLabel = document.getElementById('progress-label');
+  const scannerCountEl = document.getElementById('scanner-count');
+  const watchlistCountEl = document.getElementById('watchlist-count');
+  const scannerFoundEl = document.getElementById('scanner-found');
+  const scannerSearchInput = document.getElementById('scanner-search');
+  const watchlistSearchInput = document.getElementById('watchlist-search');
 
   // ═══════════════════════════════════════════════════════════════
   // EVENT LISTENERS
   // ═══════════════════════════════════════════════════════════════
 
   scanBtn.addEventListener('click', () => runScan());
+
+  stopBtn.addEventListener('click', () => {
+    stopRequested = true;
+    stopBtn.textContent = 'Stopping...';
+    stopBtn.disabled = true;
+  });
 
   autoScanBtn.addEventListener('click', toggleAutoScan);
 
@@ -48,7 +68,7 @@
     showToast('Watchlist cleared', 'blue');
   });
 
-  // Filter tabs
+  // Watchlist filter tabs
   document.querySelectorAll('.filter-tabs .tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.filter-tabs .tab').forEach(t => t.classList.remove('active'));
@@ -56,6 +76,36 @@
       currentFilter = tab.dataset.filter;
       renderWatchlist();
     });
+  });
+
+  // Scanner filter tabs
+  document.querySelectorAll('[data-scanner-filter]').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('[data-scanner-filter]').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      scannerFilter = tab.dataset.scannerFilter;
+      renderScannerResults();
+    });
+  });
+
+  // Scanner search
+  let scannerSearchTimeout;
+  scannerSearchInput.addEventListener('input', () => {
+    clearTimeout(scannerSearchTimeout);
+    scannerSearchTimeout = setTimeout(() => {
+      scannerSearchQuery = scannerSearchInput.value.trim().toUpperCase();
+      renderScannerResults();
+    }, 200);
+  });
+
+  // Watchlist search
+  let watchlistSearchTimeout;
+  watchlistSearchInput.addEventListener('input', () => {
+    clearTimeout(watchlistSearchTimeout);
+    watchlistSearchTimeout = setTimeout(() => {
+      watchlistSearchQuery = watchlistSearchInput.value.trim().toUpperCase();
+      renderWatchlist();
+    }, 200);
   });
 
   // Modal close
@@ -69,96 +119,154 @@
   renderWatchlist();
 
   // ═══════════════════════════════════════════════════════════════
-  // SCANNER
+  // SCANNER - SCAN ALL PAIRS
   // ═══════════════════════════════════════════════════════════════
 
   async function runScan() {
     if (isScanning) return;
     isScanning = true;
+    stopRequested = false;
 
-    scanBtn.disabled = true;
-    scanBtn.textContent = 'Scanning...';
-    scanStatusText.textContent = 'Scanning...';
+    scanBtn.classList.add('hidden');
+    stopBtn.classList.remove('hidden');
+    stopBtn.disabled = false;
+    stopBtn.textContent = 'Stop';
+    scanStatusText.textContent = 'Loading symbol list...';
     scanProgress.classList.remove('hidden');
-    scannerContainer.innerHTML = createSkeletonCards(5);
+    progressBarContainer.classList.remove('hidden');
+    scannerContainer.innerHTML = createSkeletonCards(8);
 
-    const symbols = api.getDefaultSymbols();
     const interval = intervalSelect.value;
+    const quoteAsset = quoteSelect.value;
+
+    // Fetch all symbols from Binance
+    let symbols;
+    try {
+      symbols = await api.fetchAllSymbols(quoteAsset);
+    } catch (err) {
+      scanStatusText.textContent = 'Failed to load symbols: ' + err.message;
+      finishScan();
+      return;
+    }
+
+    const total = symbols.length;
+    scanStatusText.textContent = `Scanning ${total} pairs...`;
+    scanProgress.textContent = `0/${total}`;
     scanResults = [];
 
-    // We need enough candles to form at least 20 blocks of 3 = 60 candles, plus some extra
+    let greenCount = 0;
+    let redCount = 0;
+    let errorCount = 0;
+
+    // We need 20 blocks * 3 candles = 60, plus buffer
     const limit = 80;
 
-    for (let i = 0; i < symbols.length; i++) {
-      scanProgress.textContent = `${i + 1}/${symbols.length}`;
+    // Scan in batches of 3 concurrent requests (Binance rate limit friendly)
+    const batchSize = 3;
 
-      try {
-        const candles = await api.getKlines(symbols[i], interval, limit);
-        const analysis = engine.analyze(candles);
+    for (let i = 0; i < total; i += batchSize) {
+      if (stopRequested) break;
 
-        // Get current price from last candle
-        const lastCandle = candles[candles.length - 1];
-        const price = lastCandle.close;
+      const batch = symbols.slice(i, i + batchSize);
+      const promises = batch.map(async (symInfo) => {
+        try {
+          const candles = await api.getKlines(symInfo.symbol, interval, limit);
+          const analysis = engine.analyze(candles);
+          const lastCandle = candles[candles.length - 1];
+          const price = lastCandle.close;
 
-        const result = {
-          symbol: symbols[i],
-          displaySymbol: api.formatSymbol(symbols[i]),
-          baseAsset: api.getBaseAsset(symbols[i]),
-          price,
-          analysis,
-          interval,
-          scannedAt: Date.now(),
-        };
-
-        scanResults.push(result);
-
-        // Auto-add to watchlist if in green or red phase
-        if (analysis.phase === 'green' || analysis.phase === 'red') {
-          watchlist.add({
-            symbol: symbols[i],
-            displaySymbol: result.displaySymbol,
-            baseAsset: result.baseAsset,
-            phase: analysis.phase,
-            volume: analysis.blocks.length > 0
-              ? analysis.blocks[analysis.blocks.length - 1].volume
-              : 0,
+          const result = {
+            symbol: symInfo.symbol,
+            displaySymbol: api.formatSymbol(symInfo.symbol, symInfo.quoteAsset),
+            baseAsset: symInfo.baseAsset,
+            quoteAsset: symInfo.quoteAsset,
             price,
-            stats: analysis.stats,
+            analysis,
             interval,
-            phaseReason: analysis.phaseReason,
+            scannedAt: Date.now(),
+          };
+
+          scanResults.push(result);
+
+          // Auto-add to watchlist if in green or red phase
+          if (analysis.phase === 'green' || analysis.phase === 'red') {
+            if (analysis.phase === 'green') greenCount++;
+            else redCount++;
+
+            watchlist.add({
+              symbol: symInfo.symbol,
+              displaySymbol: result.displaySymbol,
+              baseAsset: symInfo.baseAsset,
+              quoteAsset: symInfo.quoteAsset,
+              phase: analysis.phase,
+              volume: analysis.blocks.length > 0
+                ? analysis.blocks[analysis.blocks.length - 1].volume
+                : 0,
+              price,
+              stats: analysis.stats,
+              interval,
+              phaseReason: analysis.phaseReason,
+            });
+          }
+        } catch (err) {
+          errorCount++;
+          scanResults.push({
+            symbol: symInfo.symbol,
+            displaySymbol: api.formatSymbol(symInfo.symbol, symInfo.quoteAsset),
+            baseAsset: symInfo.baseAsset,
+            quoteAsset: symInfo.quoteAsset,
+            error: err.message,
+            scannedAt: Date.now(),
           });
-
-          showToast(
-            `${result.displaySymbol} added - ${analysis.phase === 'green' ? 'GREEN' : 'RED'} phase detected`,
-            analysis.phase
-          );
         }
+      });
 
-        // Progressively render results
-        renderScannerResults();
-      } catch (err) {
-        console.warn(`Failed to scan ${symbols[i]}:`, err.message);
-        scanResults.push({
-          symbol: symbols[i],
-          displaySymbol: api.formatSymbol(symbols[i]),
-          baseAsset: api.getBaseAsset(symbols[i]),
-          error: err.message,
-          scannedAt: Date.now(),
-        });
+      await Promise.all(promises);
+
+      // Update progress
+      const done = Math.min(i + batchSize, total);
+      const pct = Math.round((done / total) * 100);
+      scanProgress.textContent = `${done}/${total}`;
+      progressBar.style.width = pct + '%';
+      progressLabel.textContent = `${pct}% (${greenCount} green, ${redCount} red, ${errorCount} err)`;
+      scanStatusText.textContent = `Scanning... ${done}/${total}`;
+      scannerCountEl.textContent = scanResults.length;
+
+      // Render every 10 batches to avoid lag
+      if ((i / batchSize) % 10 === 0 || done >= total) {
         renderScannerResults();
       }
 
-      // Rate limit: small delay between requests
-      if (i < symbols.length - 1) {
-        await sleep(300);
+      // Rate limit: delay between batches
+      if (i + batchSize < total && !stopRequested) {
+        await sleep(350);
       }
     }
 
+    // Final summary toast
+    if (stopRequested) {
+      showToast(`Scan stopped. ${scanResults.length}/${total} scanned. ${greenCount} green, ${redCount} red.`, 'blue');
+    } else {
+      showToast(`Scan complete! ${total} pairs. ${greenCount} green, ${redCount} red phase detected.`, 'blue');
+    }
+
+    finishScan();
+    renderScannerResults();
+  }
+
+  function finishScan() {
     isScanning = false;
-    scanBtn.disabled = false;
-    scanBtn.textContent = 'Scan Now';
-    scanStatusText.textContent = `Last scan: ${formatTime(Date.now())}`;
+    stopRequested = false;
+    scanBtn.classList.remove('hidden');
+    stopBtn.classList.add('hidden');
+    scanBtn.textContent = 'Scan All';
+    scanStatusText.textContent = `Last scan: ${formatTime(Date.now())} | ${scanResults.length} pairs`;
     scanProgress.classList.add('hidden');
+
+    // Keep progress bar visible for 2s then fade
+    setTimeout(() => {
+      progressBarContainer.classList.add('hidden');
+    }, 2000);
   }
 
   function toggleAutoScan() {
@@ -171,8 +279,7 @@
       autoScanBtn.textContent = 'Auto Scan: ON';
       autoScanBtn.classList.add('active');
       runScan();
-      // Re-scan every 3 minutes
-      autoScanInterval = setInterval(() => runScan(), 3 * 60 * 1000);
+      autoScanInterval = setInterval(() => runScan(), 5 * 60 * 1000);
     }
   }
 
@@ -180,14 +287,28 @@
   // RENDERING - SCANNER RESULTS
   // ═══════════════════════════════════════════════════════════════
 
-  function renderScannerResults() {
-    if (scanResults.length === 0) {
-      scannerContainer.innerHTML = '<div class="empty-state"><p>No results yet.</p></div>';
-      return;
+  function getFilteredScanResults() {
+    let filtered = [...scanResults];
+
+    // Phase filter
+    if (scannerFilter !== 'all') {
+      filtered = filtered.filter(r => {
+        if (r.error) return false;
+        return r.analysis && r.analysis.phase === scannerFilter;
+      });
     }
 
-    // Sort: green/red first, then neutral
-    const sorted = [...scanResults].sort((a, b) => {
+    // Search filter
+    if (scannerSearchQuery) {
+      filtered = filtered.filter(r =>
+        r.symbol.includes(scannerSearchQuery) ||
+        r.baseAsset.includes(scannerSearchQuery) ||
+        r.displaySymbol.toUpperCase().includes(scannerSearchQuery)
+      );
+    }
+
+    // Sort: green/red first, then neutral, errors last
+    filtered.sort((a, b) => {
       if (a.error) return 1;
       if (b.error) return -1;
       const phaseOrder = { green: 0, red: 1, neutral: 2 };
@@ -196,58 +317,93 @@
       return aPhase - bPhase;
     });
 
-    scannerContainer.innerHTML = sorted.map(result => {
-      if (result.error) {
-        return `
-          <div class="crypto-card phase-neutral">
-            <div class="card-top">
-              <span class="card-symbol">${result.displaySymbol}</span>
-              <span class="card-price" style="color: var(--red);">Error</span>
-            </div>
-            <div class="card-middle">
-              <span class="phase-badge neutral">Failed: ${result.error}</span>
-            </div>
-          </div>`;
-      }
+    return filtered;
+  }
 
-      const { analysis, price, displaySymbol } = result;
-      const phase = analysis.phase;
-      const stats = analysis.stats;
+  function renderScannerResults() {
+    const filtered = getFilteredScanResults();
 
+    scannerCountEl.textContent = scanResults.length;
+
+    if (filtered.length !== scanResults.length) {
+      scannerFoundEl.classList.remove('hidden');
+      scannerFoundEl.textContent = `${filtered.length} shown`;
+    } else {
+      scannerFoundEl.classList.add('hidden');
+    }
+
+    if (filtered.length === 0) {
+      scannerContainer.innerHTML = `<div class="empty-state"><p>No results${scannerSearchQuery ? ` for "${scannerSearchQuery}"` : ''}${scannerFilter !== 'all' ? ` (${scannerFilter} phase)` : ''}.</p></div>`;
+      return;
+    }
+
+    // Virtual scroll: only render visible items (max 100 at a time for performance)
+    const toRender = filtered.slice(0, 100);
+    const remaining = filtered.length - toRender.length;
+
+    let html = toRender.map(result => renderScannerCard(result)).join('');
+
+    if (remaining > 0) {
+      html += `<div class="load-more-notice">
+        <p>${remaining} more results. Use the search or filters above to narrow down.</p>
+      </div>`;
+    }
+
+    scannerContainer.innerHTML = html;
+  }
+
+  function renderScannerCard(result) {
+    if (result.error) {
       return `
-        <div class="crypto-card phase-${phase}" data-symbol="${result.symbol}" onclick="window._openDetail('${result.symbol}')">
+        <div class="crypto-card phase-neutral">
           <div class="card-top">
-            <span class="card-symbol">${displaySymbol}</span>
-            <span class="card-price">$${formatPrice(price)}</span>
+            <span class="card-symbol">${escapeHtml(result.displaySymbol)}</span>
+            <span class="card-price" style="color: var(--red);">Error</span>
           </div>
           <div class="card-middle">
-            <span class="phase-badge ${phase}">${phaseLabel(phase)}</span>
-            ${stats && stats.percentChange !== 0 ? `
-              <span class="change-badge ${stats.percentChange > 0 ? 'positive' : 'negative'}">
-                ${stats.percentChange > 0 ? '+' : ''}${stats.percentChange.toFixed(1)}% vol
-              </span>` : ''}
-          </div>
-          ${renderMiniVolumeBars(analysis)}
-          <div class="card-stats">
-            <div class="stat">
-              <span class="stat-label">Avg Vol</span>
-              <span class="stat-value">${stats ? formatVolume(stats.average) : '-'}</span>
-            </div>
-            <div class="stat">
-              <span class="stat-label">Highest</span>
-              <span class="stat-value">${stats ? formatVolume(stats.highest) : '-'}</span>
-            </div>
-            <div class="stat">
-              <span class="stat-label">Lowest</span>
-              <span class="stat-value">${stats ? formatVolume(stats.lowest) : '-'}</span>
-            </div>
-            <div class="stat">
-              <span class="stat-label">Blocks</span>
-              <span class="stat-value">${stats ? stats.blockCount : '-'}</span>
-            </div>
+            <span class="phase-badge neutral">${escapeHtml(result.error)}</span>
           </div>
         </div>`;
-    }).join('');
+    }
+
+    const { analysis, price, displaySymbol, symbol } = result;
+    const phase = analysis.phase;
+    const stats = analysis.stats;
+    const escapedSymbol = escapeHtml(symbol);
+
+    return `
+      <div class="crypto-card phase-${phase}" data-symbol="${escapedSymbol}" onclick="window._openDetail('${escapedSymbol}')">
+        <div class="card-top">
+          <span class="card-symbol">${escapeHtml(displaySymbol)}</span>
+          <span class="card-price">$${formatPrice(price)}</span>
+        </div>
+        <div class="card-middle">
+          <span class="phase-badge ${phase}">${phaseLabel(phase)}</span>
+          ${stats && stats.percentChange !== 0 ? `
+            <span class="change-badge ${stats.percentChange > 0 ? 'positive' : 'negative'}">
+              ${stats.percentChange > 0 ? '+' : ''}${stats.percentChange.toFixed(1)}% vol
+            </span>` : ''}
+        </div>
+        ${renderMiniVolumeBars(analysis)}
+        <div class="card-stats">
+          <div class="stat">
+            <span class="stat-label">Avg Vol</span>
+            <span class="stat-value">${stats ? formatVolume(stats.average) : '-'}</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Highest</span>
+            <span class="stat-value">${stats ? formatVolume(stats.highest) : '-'}</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Lowest</span>
+            <span class="stat-value">${stats ? formatVolume(stats.lowest) : '-'}</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Blocks</span>
+            <span class="stat-value">${stats ? stats.blockCount : '-'}</span>
+          </div>
+        </div>
+      </div>`;
   }
 
   function renderMiniVolumeBars(analysis) {
@@ -256,8 +412,6 @@
 
     const maxVol = Math.max(...blocks.map(b => b.volume));
     const minVol = Math.min(...blocks.map(b => b.volume));
-
-    // Show last 10 blocks for mini chart
     const displayBlocks = blocks.slice(-10);
 
     let bars = displayBlocks.map(b => {
@@ -265,11 +419,9 @@
       let cls = '';
       if (b.volume === maxVol) cls = 'highest';
       else if (b.volume === minVol) cls = 'lowest';
-
       return `<div class="vol-bar ${cls}" style="height:${height}%"></div>`;
     }).join('');
 
-    // Add current partial block if exists
     if (analysis.currentBlock) {
       const height = maxVol > 0 ? Math.max(4, (analysis.currentBlock.volume / maxVol) * 100) : 4;
       bars += `<div class="vol-bar current" style="height:${height}%" title="Current (${analysis.currentBlock.candleCount}/3)"></div>`;
@@ -283,26 +435,37 @@
   // ═══════════════════════════════════════════════════════════════
 
   function renderWatchlist() {
-    const items = watchlist.getByPhase(currentFilter);
+    let items = watchlist.getByPhase(currentFilter);
+
+    // Search filter
+    if (watchlistSearchQuery) {
+      items = items.filter(item =>
+        item.symbol.includes(watchlistSearchQuery) ||
+        item.baseAsset.includes(watchlistSearchQuery) ||
+        item.displaySymbol.toUpperCase().includes(watchlistSearchQuery)
+      );
+    }
+
+    watchlistCountEl.textContent = watchlist.count;
 
     if (items.length === 0) {
       watchlistContainer.innerHTML = `
         <div class="empty-state">
-          <p>No assets in watchlist${currentFilter !== 'all' ? ` (${currentFilter} phase)` : ''}.</p>
-          <p class="hint">Click "Scan Now" to analyze crypto assets.</p>
+          <p>No assets in watchlist${currentFilter !== 'all' ? ` (${currentFilter} phase)` : ''}${watchlistSearchQuery ? ` matching "${watchlistSearchQuery}"` : ''}.</p>
+          <p class="hint">Click "Scan All" to analyze crypto assets.</p>
         </div>`;
       return;
     }
 
     watchlistContainer.innerHTML = items.map(item => `
-      <div class="crypto-card phase-${item.phase}" data-symbol="${item.symbol}">
+      <div class="crypto-card phase-${item.phase}" data-symbol="${escapeHtml(item.symbol)}">
         <div class="card-top">
-          <span class="card-symbol">${item.displaySymbol}</span>
+          <span class="card-symbol">${escapeHtml(item.displaySymbol)}</span>
           <span class="card-price">$${formatPrice(item.price)}</span>
         </div>
         <div class="card-middle">
           <span class="phase-badge ${item.phase}">${phaseLabel(item.phase)}</span>
-          <span style="font-size:11px; color:var(--text-muted);">${item.interval} interval</span>
+          <span style="font-size:11px; color:var(--text-muted);">${item.interval}</span>
         </div>
         <div class="card-stats">
           <div class="stat">
@@ -320,7 +483,7 @@
         </div>
         <div class="card-actions">
           <span class="card-time">Added ${formatTimeAgo(item.addedAt)}</span>
-          <button class="btn-remove" onclick="event.stopPropagation(); window._removeFromWatchlist('${item.symbol}')">Remove</button>
+          <button class="btn-remove" onclick="event.stopPropagation(); window._removeFromWatchlist('${escapeHtml(item.symbol)}')">Remove</button>
         </div>
       </div>`).join('');
   }
@@ -384,7 +547,6 @@
       html += '<div class="detail-chart">';
       html += '<h4>Volume Blocks (last ' + blocks.length + ' completed blocks)</h4>';
 
-      // Average line position
       if (stats) {
         const avgPercent = (stats.average / maxVol) * 100;
         html += `
@@ -413,7 +575,6 @@
           </div>`;
       }
 
-      // Current partial block
       if (analysis.currentBlock) {
         const cb = analysis.currentBlock;
         const height = maxVol > 0 ? Math.max(4, (cb.volume / maxVol) * 100) : 4;
@@ -497,6 +658,12 @@
 
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
   }
 
   function createSkeletonCards(count) {

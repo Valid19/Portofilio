@@ -22,22 +22,39 @@
           <option value="4h">4 hours</option>
           <option value="1d">1 day</option>
         </select>
-        <button id="scan-btn" class="btn btn-primary">Scan Now</button>
+
+        <label for="quote-select">Market:</label>
+        <select id="quote-select">
+          <option value="USDT" selected>USDT</option>
+          <option value="BTC">BTC</option>
+          <option value="ETH">ETH</option>
+          <option value="BNB">BNB</option>
+          <option value="ALL">ALL</option>
+        </select>
+
+        <button id="scan-btn" class="btn btn-primary">Scan All</button>
+        <button id="stop-btn" class="btn btn-stop hidden">Stop</button>
         <button id="auto-scan-btn" class="btn btn-secondary">Auto Scan: OFF</button>
       </div>
     </div>
   </header>
 
+  <!-- Progress Bar -->
+  <div id="progress-bar-container" class="progress-bar-container hidden">
+    <div id="progress-bar" class="progress-bar"></div>
+    <span id="progress-label" class="progress-label">0%</span>
+  </div>
+
   <main class="main">
     <!-- Watchlist Panel -->
     <section class="panel watchlist-panel">
       <div class="panel-header">
-        <h2>Watchlist</h2>
+        <h2>Watchlist <span id="watchlist-count" class="count-badge">0</span></h2>
         <div class="panel-actions">
           <div class="filter-tabs">
             <button class="tab active" data-filter="all">All</button>
-            <button class="tab" data-filter="green">Green Phase</button>
-            <button class="tab" data-filter="red">Red Phase</button>
+            <button class="tab" data-filter="green">Green</button>
+            <button class="tab" data-filter="red">Red</button>
           </div>
           <button id="clear-watchlist" class="btn btn-small btn-danger">Clear All</button>
         </div>
@@ -45,10 +62,13 @@
       <div class="watchlist-info">
         <p>Cryptos are auto-added when detected in a <span class="green-text">Green (Highest Volume)</span> or <span class="red-text">Red (Lowest Volume)</span> 3-block phase.</p>
       </div>
+      <div class="watchlist-search">
+        <input type="text" id="watchlist-search" placeholder="Search watchlist..." />
+      </div>
       <div id="watchlist-container" class="watchlist-container">
         <div class="empty-state">
           <p>No assets in watchlist yet.</p>
-          <p class="hint">Click "Scan Now" to analyze crypto assets.</p>
+          <p class="hint">Click "Scan All" to analyze crypto assets.</p>
         </div>
       </div>
     </section>
@@ -56,15 +76,26 @@
     <!-- Scanner Results -->
     <section class="panel scanner-panel">
       <div class="panel-header">
-        <h2>Scanner Results</h2>
+        <h2>Scanner <span id="scanner-count" class="count-badge">0</span></h2>
         <div class="scan-status">
           <span id="scan-status-text">Ready to scan</span>
-          <span id="scan-progress" class="progress-badge hidden">0/20</span>
+          <span id="scan-progress" class="progress-badge hidden">0/0</span>
         </div>
+      </div>
+      <div class="scanner-toolbar">
+        <input type="text" id="scanner-search" placeholder="Search assets (e.g. BTC, SOL, DOGE)..." />
+        <div class="scanner-filters">
+          <button class="tab active" data-scanner-filter="all">All</button>
+          <button class="tab" data-scanner-filter="green">Green</button>
+          <button class="tab" data-scanner-filter="red">Red</button>
+          <button class="tab" data-scanner-filter="neutral">Neutral</button>
+        </div>
+        <span id="scanner-found" class="found-badge hidden"></span>
       </div>
       <div id="scanner-container" class="scanner-container">
         <div class="empty-state">
-          <p>Click "Scan Now" to analyze Volume 3 Block patterns.</p>
+          <p>Click "Scan All" to analyze Volume 3 Block patterns</p>
+          <p class="hint">All crypto pairs from Binance will be scanned.</p>
         </div>
       </div>
     </section>
@@ -78,9 +109,7 @@
         <h3 id="modal-title">Asset Detail</h3>
         <button class="modal-close">&times;</button>
       </div>
-      <div id="modal-body" class="modal-body">
-        <!-- Volume block chart will render here -->
-      </div>
+      <div id="modal-body" class="modal-body"></div>
     </div>
   </div>
 
