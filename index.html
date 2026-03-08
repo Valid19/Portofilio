@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Downloader</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 580px;
+            padding: 20px;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.06);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            padding: 44px 36px;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 36px;
+        }
+
+        .logo-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #ff4757, #c0392b);
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            box-shadow: 0 8px 30px rgba(255,71,87,0.3);
+        }
+
+        .logo-icon svg { width: 32px; height: 32px; }
+
+        .logo h1 {
+            font-size: 26px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #ff4757, #ff6b81);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo p {
+            color: rgba(255,255,255,0.45);
+            font-size: 14px;
+            margin-top: 6px;
+        }
+
+        /* Thumbnail */
+        .thumb-area {
+            display: none;
+            margin-bottom: 18px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+
+        .thumb-area.show { display: block; }
+
+        .thumb-area img {
+            width: 100%;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* Input */
+        .input-wrap {
+            position: relative;
+            margin-bottom: 14px;
+        }
+
+        .input-wrap input {
+            width: 100%;
+            padding: 18px 100px 18px 22px;
+            background: rgba(255,255,255,0.07);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            color: #fff;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.3s, background 0.3s;
+        }
+
+        .input-wrap input:focus {
+            border-color: #ff4757;
+            background: rgba(255,255,255,0.11);
+        }
+
+        .input-wrap input::placeholder { color: rgba(255,255,255,0.3); }
+
+        .btn-paste {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 10px 18px;
+            background: rgba(255,71,87,0.15);
+            border: 1px solid rgba(255,71,87,0.3);
+            border-radius: 11px;
+            color: #ff6b81;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-paste:hover { background: rgba(255,71,87,0.3); }
+
+        /* Options row */
+        .opts {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+
+        .opts select {
+            flex: 1;
+            padding: 14px 16px;
+            background: rgba(255,255,255,0.07);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 14px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+        }
+
+        .opts select option { background: #1a1a2e; color: #fff; }
+
+        /* Big download button */
+        .btn-dl {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #ff4757, #c0392b);
+            border: none;
+            border-radius: 16px;
+            color: #fff;
+            font-size: 17px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            letter-spacing: 0.3px;
+        }
+
+        .btn-dl:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(255,71,87,0.45);
+        }
+
+        .btn-dl:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .btn-dl svg { width: 22px; height: 22px; }
+
+        /* Status / Progress */
+        .status-box {
+            display: none;
+            margin-top: 22px;
+            padding: 18px 20px;
+            border-radius: 14px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .status-box.show { display: block; }
+
+        .status-box.loading {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .status-box.success {
+            background: rgba(46,213,115,0.1);
+            border: 1px solid rgba(46,213,115,0.3);
+        }
+
+        .status-box.error {
+            background: rgba(255,71,87,0.1);
+            border: 1px solid rgba(255,71,87,0.3);
+            color: #ff6b81;
+        }
+
+        .status-msg { margin-bottom: 14px; color: rgba(255,255,255,0.8); }
+
+        .btn-save {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #2ed573, #17a558);
+            border: none;
+            border-radius: 14px;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(46,213,115,0.35);
+        }
+
+        .btn-save svg { width: 20px; height: 20px; }
+
+        /* Spinner */
+        .spinner {
+            display: inline-block;
+            width: 22px;
+            height: 22px;
+            border: 3px solid rgba(255,255,255,0.2);
+            border-top-color: #ff6b81;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .pulse { animation: pulse 1.5s infinite; }
+
+        /* Methods info */
+        .methods-info {
+            margin-top: 20px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            text-align: center;
+        }
+
+        .methods-info p {
+            font-size: 12px;
+            color: rgba(255,255,255,0.25);
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: rgba(46,213,115,0.95);
+            color: #fff;
+            padding: 12px 28px;
+            border-radius: 14px;
+            font-size: 14px;
+            font-weight: 700;
+            opacity: 0;
+            transition: all 0.4s;
+            z-index: 100;
+            white-space: nowrap;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast.err { background: rgba(255,71,87,0.95); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <div class="logo">
+            <div class="logo-icon">
+                <svg viewBox="0 0 24 24" fill="white"><path d="M9.5 7.5V16.5L17 12L9.5 7.5Z"/></svg>
+            </div>
+            <h1>YouTube Downloader</h1>
+            <p>Paste link YouTube, klik Download. Selesai.</p>
+        </div>
+
+        <div class="thumb-area" id="thumbArea">
+            <img id="thumbImg" src="" alt="">
+        </div>
+
+        <div class="input-wrap">
+            <input type="text" id="urlInput" placeholder="https://www.youtube.com/watch?v=..." autofocus>
+            <button class="btn-paste" onclick="doPaste()">Paste</button>
+        </div>
+
+        <div class="opts">
+            <select id="fmtSelect">
+                <option value="mp4">MP4 (Video)</option>
+                <option value="webm">WEBM</option>
+                <option value="mp3">MP3 (Audio)</option>
+            </select>
+            <select id="qualSelect">
+                <option value="1080">1080p</option>
+                <option value="720">720p</option>
+                <option value="480">480p</option>
+                <option value="360">360p</option>
+            </select>
+        </div>
+
+        <button class="btn-dl" id="dlBtn" onclick="doDownload()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            DOWNLOAD VIDEO
+        </button>
+
+        <div class="status-box" id="statusBox">
+            <div id="statusContent"></div>
+        </div>
+
+        <div class="methods-info">
+            <p>Menggunakan beberapa layanan download secara otomatis</p>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const urlInput = document.getElementById('urlInput');
+const dlBtn = document.getElementById('dlBtn');
+const statusBox = document.getElementById('statusBox');
+const statusContent = document.getElementById('statusContent');
+const thumbArea = document.getElementById('thumbArea');
+const thumbImg = document.getElementById('thumbImg');
+const toastEl = document.getElementById('toast');
+const fmtSelect = document.getElementById('fmtSelect');
+const qualSelect = document.getElementById('qualSelect');
+
+const DL_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+const SAVE_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+
+// ========== HELPERS ==========
+function getVideoId(url) {
+    const m = url.match(/(?:v=|youtu\.be\/|\/embed\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
+    return m ? m[1] : null;
+}
+
+function toast(msg, isErr) {
+    toastEl.textContent = msg;
+    toastEl.className = 'toast show' + (isErr ? ' err' : '');
+    setTimeout(() => toastEl.className = 'toast', 3000);
+}
+
+function showThumb() {
+    const vid = getVideoId(urlInput.value);
+    if (vid) {
+        thumbImg.src = `https://img.youtube.com/vi/${vid}/mqdefault.jpg`;
+        thumbArea.classList.add('show');
+        thumbImg.onerror = () => thumbArea.classList.remove('show');
+    } else {
+        thumbArea.classList.remove('show');
+    }
+}
+
+function setLoading(msg) {
+    statusBox.className = 'status-box show loading';
+    statusContent.innerHTML = `<div class="spinner"></div><div class="pulse">${msg}</div>`;
+    dlBtn.disabled = true;
+    dlBtn.innerHTML = `<span class="pulse">Memproses...</span>`;
+}
+
+function setError(msg) {
+    statusBox.className = 'status-box show error';
+    statusContent.innerHTML = msg;
+    resetBtn();
+}
+
+function setSuccess(downloadUrl, filename) {
+    statusBox.className = 'status-box show success';
+    statusContent.innerHTML = `
+        <div class="status-msg">Video siap didownload!</div>
+        <a class="btn-save" href="${downloadUrl}" target="_blank" rel="noopener">
+            ${SAVE_SVG} Simpan File
+        </a>`;
+    resetBtn();
+    // Auto trigger download
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast('Download dimulai!');
+}
+
+function resetBtn() {
+    dlBtn.disabled = false;
+    dlBtn.innerHTML = DL_SVG + ' DOWNLOAD VIDEO';
+}
+
+function hideStatus() {
+    statusBox.className = 'status-box';
+}
+
+// ========== PASTE ==========
+async function doPaste() {
+    try {
+        const txt = await navigator.clipboard.readText();
+        if (txt) { urlInput.value = txt; showThumb(); toast('Link di-paste!'); }
+    } catch { urlInput.focus(); toast('Tekan Ctrl+V', true); }
+}
+
+// ========== EVENT LISTENERS ==========
+urlInput.addEventListener('input', showThumb);
+urlInput.addEventListener('paste', () => setTimeout(showThumb, 50));
+urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') doDownload(); });
+
+// Auto-paste on page load
+window.addEventListener('load', async () => {
+    try {
+        const txt = await navigator.clipboard.readText();
+        if (txt && (txt.includes('youtube.com/watch') || txt.includes('youtu.be/'))) {
+            urlInput.value = txt;
+            showThumb();
+            toast('Link YouTube terdeteksi!');
+        }
+    } catch {}
+});
+
+// ========== DOWNLOAD SERVICES (multiple fallbacks) ==========
+
+// Service 1: cobalt API
+async function tryCobalt(url, fmt, qual) {
+    const apiUrl = 'https://api.cobalt.tools/';
+    const body = {
+        url: url,
+        videoQuality: qual,
+        filenameStyle: 'pretty',
+    };
+    if (fmt === 'mp3') {
+        body.downloadMode = 'audio';
+        body.audioFormat = 'mp3';
+    } else {
+        body.downloadMode = 'auto';
+    }
+
+    const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body)
+    });
+
+    const data = await res.json();
+    if (data.url) return data.url;
+    if (data.picker && data.picker.length > 0) return data.picker[0].url;
+    throw new Error(data.error || 'No URL returned');
+}
+
+// Service 2: y2mate-style via allorigins proxy workaround (embed page scraping)
+async function tryDirectEmbed(url, fmt) {
+    // Use YouTube's oembed to get info, then redirect to noembed
+    const vid = getVideoId(url);
+    if (!vid) throw new Error('Invalid video ID');
+    // Try getting the video through a public embed endpoint
+    const embedUrl = `https://www.youtube.com/embed/${vid}`;
+    // This won't directly work for downloading but we try as fallback info
+    throw new Error('Direct embed not available');
+}
+
+// Service 3: Use iframe-based third party downloader
+function tryIframeService(url) {
+    const vid = getVideoId(url);
+    if (!vid) throw new Error('No video ID');
+    // Open a known working YouTube download service in new tab
+    const services = [
+        `https://ssyoutube.com/watch?v=${vid}`,
+        `https://10downloader.com/download?v=https://www.youtube.com/watch?v=${vid}`,
+        `https://yt1s.com/youtube-to-mp4?q=https://www.youtube.com/watch?v=${vid}`,
+    ];
+    return services;
+}
+
+// ========== MAIN DOWNLOAD LOGIC ==========
+async function doDownload() {
+    const url = urlInput.value.trim();
+    if (!url) { toast('Masukkan link YouTube!', true); return; }
+    if (!getVideoId(url)) { toast('Link YouTube tidak valid!', true); return; }
+
+    const fmt = fmtSelect.value;
+    const qual = qualSelect.value;
+
+    hideStatus();
+    setLoading('Menghubungi server download...');
+
+    // Try Service 1: Cobalt
+    try {
+        setLoading('Mencoba server 1...');
+        const dlUrl = await tryCobalt(url, fmt, qual);
+        setSuccess(dlUrl, 'video.' + fmt);
+        return;
+    } catch (e) {
+        console.log('Cobalt failed:', e.message);
+    }
+
+    // Try Service 2: Alternative API
+    try {
+        setLoading('Mencoba server 2...');
+        const vid = getVideoId(url);
+        const apiUrl = `https://api.vevioz.com/api/button/mp4/${vid}`;
+        const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`);
+        const html = await res.text();
+        const match = html.match(/href="(https?:\/\/[^"]+\.mp4[^"]*)"/);
+        if (match && match[1]) {
+            setSuccess(match[1], 'video.mp4');
+            return;
+        }
+        throw new Error('No link found');
+    } catch (e) {
+        console.log('Service 2 failed:', e.message);
+    }
+
+    // Fallback: Open external downloader services
+    setLoading('Membuka layanan download alternatif...');
+    const vid = getVideoId(url);
+    const fallbackUrl = `https://ssyoutube.com/watch?v=${vid}`;
+
+    statusBox.className = 'status-box show loading';
+    statusContent.innerHTML = `
+        <div class="status-msg" style="margin-bottom:16px;">
+            Klik tombol di bawah untuk download via layanan alternatif:
+        </div>
+        <a class="btn-save" href="${fallbackUrl}" target="_blank" rel="noopener" style="margin-bottom:10px;display:inline-flex;">
+            ${SAVE_SVG} Download via SSYouTube
+        </a>
+        <br><br>
+        <a class="btn-save" href="https://10downloader.com/download?v=https://www.youtube.com/watch?v=${vid}" target="_blank" rel="noopener" style="background:linear-gradient(135deg,#4834d4,#686de0);">
+            ${SAVE_SVG} Download via 10Downloader
+        </a>
+    `;
+    resetBtn();
+}
+</script>
+
+</body>
+</html>
