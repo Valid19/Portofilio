@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Downloader</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 560px;
+            padding: 20px;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.06);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 40px 32px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .logo svg {
+            width: 56px;
+            height: 56px;
+            margin-bottom: 12px;
+        }
+
+        .logo h1 {
+            font-size: 22px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ff4757, #ff6b81);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo p {
+            color: rgba(255,255,255,0.5);
+            font-size: 13px;
+            margin-top: 4px;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 16px 20px;
+            background: rgba(255,255,255,0.08);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 14px;
+            color: #fff;
+            font-size: 15px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .input-group input:focus {
+            border-color: #ff4757;
+            background: rgba(255,255,255,0.12);
+        }
+
+        .input-group input::placeholder {
+            color: rgba(255,255,255,0.35);
+        }
+
+        .options {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .options select {
+            flex: 1;
+            padding: 12px 16px;
+            background: rgba(255,255,255,0.08);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+        }
+
+        .options select:focus {
+            border-color: #ff4757;
+        }
+
+        .options select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+
+        .btn-download {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #ff4757, #c0392b);
+            border: none;
+            border-radius: 14px;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-download:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255,71,87,0.4);
+        }
+
+        .btn-download:active {
+            transform: translateY(0);
+        }
+
+        .btn-download:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-download svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Progress */
+        .progress-area {
+            display: none;
+            margin-top: 24px;
+        }
+
+        .progress-area.active {
+            display: block;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: rgba(255,255,255,0.7);
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #ff4757, #ff6b81);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        /* Result */
+        .result-area {
+            display: none;
+            margin-top: 24px;
+        }
+
+        .result-area.active {
+            display: block;
+        }
+
+        .result-card {
+            background: rgba(46, 213, 115, 0.1);
+            border: 1px solid rgba(46, 213, 115, 0.3);
+            border-radius: 14px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .result-card .check {
+            width: 48px;
+            height: 48px;
+            background: rgba(46,213,115,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 12px;
+        }
+
+        .result-card .check svg {
+            width: 24px;
+            height: 24px;
+            color: #2ed573;
+        }
+
+        .result-card .file-name {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            word-break: break-all;
+        }
+
+        .result-card .file-size {
+            font-size: 13px;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 16px;
+        }
+
+        .btn-save {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 28px;
+            background: linear-gradient(135deg, #2ed573, #17a558);
+            border: none;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(46,213,115,0.3);
+        }
+
+        /* Error */
+        .error-area {
+            display: none;
+            margin-top: 24px;
+        }
+
+        .error-area.active {
+            display: block;
+        }
+
+        .error-card {
+            background: rgba(255,71,87,0.1);
+            border: 1px solid rgba(255,71,87,0.3);
+            border-radius: 14px;
+            padding: 16px 20px;
+            color: #ff6b81;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        /* Pulse animation for downloading */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .downloading-text {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="logo">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="24" height="24" rx="6" fill="#FF4757"/>
+                    <path d="M9.5 7.5V16.5L17 12L9.5 7.5Z" fill="white"/>
+                </svg>
+                <h1>YouTube Downloader</h1>
+                <p>Paste link, pilih format, klik Download</p>
+            </div>
+
+            <div class="input-group">
+                <input type="text" id="urlInput" placeholder="Paste link YouTube di sini..." autofocus>
+            </div>
+
+            <div class="options">
+                <select id="formatSelect">
+                    <option value="mp4">MP4</option>
+                    <option value="webm">WEBM</option>
+                    <option value="mov">MOV</option>
+                </select>
+                <select id="qualitySelect">
+                    <option value="best">Kualitas Terbaik</option>
+                    <option value="1080">1080p</option>
+                    <option value="720">720p</option>
+                    <option value="480">480p</option>
+                    <option value="360">360p</option>
+                </select>
+            </div>
+
+            <button class="btn-download" id="downloadBtn" onclick="startDownload()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download Video
+            </button>
+
+            <!-- Progress -->
+            <div class="progress-area" id="progressArea">
+                <div class="progress-info">
+                    <span class="downloading-text" id="statusText">Memulai download...</span>
+                    <span id="progressText">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+            </div>
+
+            <!-- Result -->
+            <div class="result-area" id="resultArea">
+                <div class="result-card">
+                    <div class="check">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                    </div>
+                    <div class="file-name" id="fileName"></div>
+                    <div class="file-size" id="fileSize"></div>
+                    <a class="btn-save" id="saveBtn" href="#" download>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Simpan File
+                    </a>
+                </div>
+            </div>
+
+            <!-- Error -->
+            <div class="error-area" id="errorArea">
+                <div class="error-card" id="errorText"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlInput = document.getElementById('urlInput');
+        const formatSelect = document.getElementById('formatSelect');
+        const qualitySelect = document.getElementById('qualitySelect');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const progressArea = document.getElementById('progressArea');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const statusText = document.getElementById('statusText');
+        const resultArea = document.getElementById('resultArea');
+        const errorArea = document.getElementById('errorArea');
+        const errorText = document.getElementById('errorText');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const saveBtn = document.getElementById('saveBtn');
+
+        // Allow Enter key to start download
+        urlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') startDownload();
+        });
+
+        function resetUI() {
+            progressArea.classList.remove('active');
+            resultArea.classList.remove('active');
+            errorArea.classList.remove('active');
+            progressBar.style.width = '0%';
+            progressText.textContent = '0%';
+        }
+
+        function showError(msg) {
+            resetUI();
+            errorArea.classList.add('active');
+            errorText.textContent = msg;
+            downloadBtn.disabled = false;
+            downloadBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download Video`;
+        }
+
+        async function startDownload() {
+            const url = urlInput.value.trim();
+            if (!url) {
+                showError('Masukkan link YouTube terlebih dahulu!');
+                return;
+            }
+
+            resetUI();
+            downloadBtn.disabled = true;
+            downloadBtn.innerHTML = `<span class="downloading-text">Memproses...</span>`;
+            progressArea.classList.add('active');
+            statusText.textContent = 'Memulai download...';
+
+            try {
+                const res = await fetch('/api/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: url,
+                        format: formatSelect.value,
+                        quality: qualitySelect.value
+                    })
+                });
+
+                const data = await res.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                // Poll progress
+                pollProgress(data.task_id);
+            } catch (err) {
+                showError('Terjadi kesalahan koneksi. Coba lagi.');
+            }
+        }
+
+        function pollProgress(taskId) {
+            const interval = setInterval(async () => {
+                try {
+                    const res = await fetch(`/api/progress/${taskId}`);
+                    const data = await res.json();
+
+                    if (data.status === 'downloading') {
+                        statusText.textContent = 'Mendownload video...';
+                        const pct = parseFloat(data.progress) || 0;
+                        progressBar.style.width = pct + '%';
+                        progressText.textContent = data.progress;
+                    } else if (data.status === 'processing') {
+                        statusText.textContent = 'Memproses video...';
+                        progressBar.style.width = '95%';
+                        progressText.textContent = '95%';
+                    } else if (data.status === 'done') {
+                        clearInterval(interval);
+                        progressBar.style.width = '100%';
+                        progressText.textContent = '100%';
+
+                        setTimeout(() => {
+                            progressArea.classList.remove('active');
+                            resultArea.classList.add('active');
+                            fileName.textContent = data.filename;
+                            fileSize.textContent = data.size;
+                            saveBtn.href = `/api/file/${taskId}`;
+
+                            downloadBtn.disabled = false;
+                            downloadBtn.innerHTML = `
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                Download Video Lain`;
+                        }, 500);
+                    } else if (data.status === 'error') {
+                        clearInterval(interval);
+                        showError(data.error || 'Download gagal. Coba lagi.');
+                    }
+                } catch (err) {
+                    // Network error, keep polling
+                }
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
