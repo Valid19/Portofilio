@@ -57,6 +57,7 @@
             margin-top: 4px;
         }
 
+        /* Input with paste button */
         .input-group {
             position: relative;
             margin-bottom: 16px;
@@ -64,7 +65,7 @@
 
         .input-group input {
             width: 100%;
-            padding: 16px 20px;
+            padding: 16px 110px 16px 20px;
             background: rgba(255,255,255,0.08);
             border: 2px solid rgba(255,255,255,0.1);
             border-radius: 14px;
@@ -81,6 +82,66 @@
 
         .input-group input::placeholder {
             color: rgba(255,255,255,0.35);
+        }
+
+        .btn-paste {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 8px 16px;
+            background: rgba(255,71,87,0.2);
+            border: 1px solid rgba(255,71,87,0.4);
+            border-radius: 10px;
+            color: #ff6b81;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-paste:hover {
+            background: rgba(255,71,87,0.35);
+        }
+
+        .btn-paste svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Video preview */
+        .video-preview {
+            display: none;
+            margin-bottom: 16px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.1);
+            position: relative;
+        }
+
+        .video-preview.active {
+            display: block;
+        }
+
+        .video-preview img {
+            width: 100%;
+            display: block;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+        }
+
+        .video-preview .overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 12px 16px;
+            background: linear-gradient(transparent, rgba(0,0,0,0.85));
+            font-size: 13px;
+            color: rgba(255,255,255,0.9);
         }
 
         .options {
@@ -278,7 +339,7 @@
             text-align: center;
         }
 
-        /* Pulse animation for downloading */
+        /* Animations */
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -286,6 +347,86 @@
 
         .downloading-text {
             animation: pulse 1.5s infinite;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.4s ease;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: rgba(46,213,115,0.95);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            opacity: 0;
+            transition: all 0.4s;
+            z-index: 100;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* History */
+        .history-area {
+            margin-top: 24px;
+            display: none;
+        }
+
+        .history-area.active {
+            display: block;
+        }
+
+        .history-title {
+            font-size: 13px;
+            color: rgba(255,255,255,0.4);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .history-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 10px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .history-item:hover {
+            background: rgba(255,255,255,0.08);
+        }
+
+        .history-item .hi-name {
+            font-size: 13px;
+            color: rgba(255,255,255,0.7);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 70%;
+        }
+
+        .history-item .hi-action {
+            font-size: 12px;
+            color: #ff6b81;
+            font-weight: 600;
         }
     </style>
 </head>
@@ -301,8 +442,21 @@
                 <p>Paste link, pilih format, klik Download</p>
             </div>
 
+            <!-- Video Preview -->
+            <div class="video-preview" id="videoPreview">
+                <img id="thumbnail" src="" alt="Video thumbnail">
+                <div class="overlay" id="videoTitle">Video</div>
+            </div>
+
             <div class="input-group">
                 <input type="text" id="urlInput" placeholder="Paste link YouTube di sini..." autofocus>
+                <button class="btn-paste" id="pasteBtn" onclick="pasteFromClipboard()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                    Paste
+                </button>
             </div>
 
             <div class="options">
@@ -342,7 +496,7 @@
 
             <!-- Result -->
             <div class="result-area" id="resultArea">
-                <div class="result-card">
+                <div class="result-card fade-in">
                     <div class="check">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="20 6 9 17 4 12"/>
@@ -365,8 +519,17 @@
             <div class="error-area" id="errorArea">
                 <div class="error-card" id="errorText"></div>
             </div>
+
+            <!-- Download History -->
+            <div class="history-area" id="historyArea">
+                <div class="history-title">Riwayat Download</div>
+                <div id="historyList"></div>
+            </div>
         </div>
     </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
 
     <script>
         const urlInput = document.getElementById('urlInput');
@@ -383,11 +546,102 @@
         const fileName = document.getElementById('fileName');
         const fileSize = document.getElementById('fileSize');
         const saveBtn = document.getElementById('saveBtn');
+        const videoPreview = document.getElementById('videoPreview');
+        const thumbnail = document.getElementById('thumbnail');
+        const videoTitle = document.getElementById('videoTitle');
+        const toast = document.getElementById('toast');
+        const historyArea = document.getElementById('historyArea');
+        const historyList = document.getElementById('historyList');
 
-        // Allow Enter key to start download
+        // ===== PASTE FROM CLIPBOARD =====
+        async function pasteFromClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text) {
+                    urlInput.value = text;
+                    showToast('Link berhasil di-paste!');
+                    handleUrlChange();
+                }
+            } catch {
+                // Fallback: focus input so user can Ctrl+V
+                urlInput.focus();
+                showToast('Tekan Ctrl+V untuk paste');
+            }
+        }
+
+        // ===== TOAST =====
+        function showToast(msg) {
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        // ===== VIDEO PREVIEW =====
+        function extractVideoId(url) {
+            const match = url.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+            return match ? match[1] : null;
+        }
+
+        function handleUrlChange() {
+            const url = urlInput.value.trim();
+            const videoId = extractVideoId(url);
+            if (videoId) {
+                thumbnail.src = `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+                videoPreview.classList.add('active');
+                thumbnail.onerror = () => videoPreview.classList.remove('active');
+            } else {
+                videoPreview.classList.remove('active');
+            }
+        }
+
+        // Listen for URL changes
+        urlInput.addEventListener('input', handleUrlChange);
+        urlInput.addEventListener('paste', () => setTimeout(handleUrlChange, 100));
+
+        // Enter key to download
         urlInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') startDownload();
         });
+
+        // ===== DOWNLOAD HISTORY =====
+        function loadHistory() {
+            try {
+                return JSON.parse(localStorage.getItem('yt_dl_history') || '[]');
+            } catch { return []; }
+        }
+
+        function saveToHistory(name, taskId) {
+            const history = loadHistory();
+            history.unshift({ name, taskId, time: Date.now() });
+            if (history.length > 5) history.pop();
+            localStorage.setItem('yt_dl_history', JSON.stringify(history));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const history = loadHistory();
+            if (history.length === 0) {
+                historyArea.classList.remove('active');
+                return;
+            }
+            historyArea.classList.add('active');
+            historyList.innerHTML = history.map(h => `
+                <div class="history-item" onclick="window.location.href='/api/file/${h.taskId}'">
+                    <span class="hi-name">${h.name}</span>
+                    <span class="hi-action">Download</span>
+                </div>
+            `).join('');
+        }
+
+        renderHistory();
+
+        // ===== CORE DOWNLOAD =====
+        const downloadSvg = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>`;
 
         function resetUI() {
             progressArea.classList.remove('active');
@@ -402,13 +656,7 @@
             errorArea.classList.add('active');
             errorText.textContent = msg;
             downloadBtn.disabled = false;
-            downloadBtn.innerHTML = `
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                Download Video`;
+            downloadBtn.innerHTML = downloadSvg + ' Download Video';
         }
 
         async function startDownload() {
@@ -417,12 +665,16 @@
                 showError('Masukkan link YouTube terlebih dahulu!');
                 return;
             }
+            if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+                showError('URL harus link YouTube yang valid!');
+                return;
+            }
 
             resetUI();
             downloadBtn.disabled = true;
-            downloadBtn.innerHTML = `<span class="downloading-text">Memproses...</span>`;
+            downloadBtn.innerHTML = '<span class="downloading-text">Memproses...</span>';
             progressArea.classList.add('active');
-            statusText.textContent = 'Memulai download...';
+            statusText.textContent = 'Menghubungi YouTube...';
 
             try {
                 const res = await fetch('/api/download', {
@@ -442,10 +694,9 @@
                     return;
                 }
 
-                // Poll progress
                 pollProgress(data.task_id);
-            } catch (err) {
-                showError('Terjadi kesalahan koneksi. Coba lagi.');
+            } catch {
+                showError('Tidak bisa terhubung ke server. Pastikan server berjalan.');
             }
         }
 
@@ -457,17 +708,33 @@
 
                     if (data.status === 'downloading') {
                         statusText.textContent = 'Mendownload video...';
+                        downloadBtn.innerHTML = '<span class="downloading-text">Mendownload...</span>';
                         const pct = parseFloat(data.progress) || 0;
                         progressBar.style.width = pct + '%';
                         progressText.textContent = data.progress;
                     } else if (data.status === 'processing') {
-                        statusText.textContent = 'Memproses video...';
+                        statusText.textContent = 'Menggabungkan audio & video...';
+                        downloadBtn.innerHTML = '<span class="downloading-text">Memproses...</span>';
                         progressBar.style.width = '95%';
                         progressText.textContent = '95%';
                     } else if (data.status === 'done') {
                         clearInterval(interval);
                         progressBar.style.width = '100%';
                         progressText.textContent = '100%';
+                        statusText.textContent = 'Selesai!';
+
+                        // Auto-trigger file download
+                        const link = document.createElement('a');
+                        link.href = `/api/file/${taskId}`;
+                        link.download = data.filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+
+                        showToast('Video berhasil didownload!');
+
+                        // Save to history
+                        saveToHistory(data.filename, taskId);
 
                         setTimeout(() => {
                             progressArea.classList.remove('active');
@@ -477,23 +744,33 @@
                             saveBtn.href = `/api/file/${taskId}`;
 
                             downloadBtn.disabled = false;
-                            downloadBtn.innerHTML = `
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                    <polyline points="7 10 12 15 17 10"/>
-                                    <line x1="12" y1="15" x2="12" y2="3"/>
-                                </svg>
-                                Download Video Lain`;
+                            downloadBtn.innerHTML = downloadSvg + ' Download Video Lain';
                         }, 500);
                     } else if (data.status === 'error') {
                         clearInterval(interval);
-                        showError(data.error || 'Download gagal. Coba lagi.');
+                        showError(data.error || 'Download gagal. Cek URL atau coba format lain.');
                     }
-                } catch (err) {
-                    // Network error, keep polling
+                } catch {
+                    // Network hiccup, keep polling
                 }
             }, 1000);
         }
+
+        // ===== AUTO-PASTE ON FOCUS =====
+        // Jika user baru buka halaman dan clipboard punya YouTube link, auto-paste
+        window.addEventListener('focus', async () => {
+            if (urlInput.value) return; // Sudah ada URL
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text && (text.includes('youtube.com/watch') || text.includes('youtu.be/'))) {
+                    urlInput.value = text;
+                    handleUrlChange();
+                    showToast('Link YouTube terdeteksi dari clipboard!');
+                }
+            } catch {
+                // Clipboard access denied, no problem
+            }
+        });
     </script>
 </body>
 </html>
